@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,29 +34,29 @@ type Profile struct {
 
 // Experience represents work experience
 type Experience struct {
-	ID           uuid.UUID    `json:"id"`
-	ProfileID    uuid.UUID    `json:"profile_id"`
-	Company      string       `json:"company"`
-	Position     string       `json:"position"`
-	StartDate    time.Time    `json:"start_date"`
-	EndDate      sql.NullTime `json:"end_date,omitempty"`
-	IsCurrent    bool         `json:"is_current"`
-	Description  string       `json:"description,omitempty"`
-	Achievements []string     `json:"achievements,omitempty"`
-	CreatedAt    time.Time    `json:"created_at"`
+	ID           uuid.UUID `json:"id"`
+	ProfileID    uuid.UUID `json:"profile_id"`
+	Company      string    `json:"company"`
+	Position     string    `json:"position"`
+	StartDate    Date      `json:"start_date"`
+	EndDate      NullDate  `json:"end_date,omitempty"`
+	IsCurrent    bool      `json:"is_current"`
+	Description  string    `json:"description,omitempty"`
+	Achievements []string  `json:"achievements,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // Education represents educational background
 type Education struct {
-	ID           uuid.UUID    `json:"id"`
-	ProfileID    uuid.UUID    `json:"profile_id"`
-	Institution  string       `json:"institution"`
-	Degree       string       `json:"degree"`
-	FieldOfStudy string       `json:"field_of_study,omitempty"`
-	StartDate    time.Time    `json:"start_date"`
-	EndDate      sql.NullTime `json:"end_date,omitempty"`
-	GPA          float64      `json:"gpa,omitempty"`
-	CreatedAt    time.Time    `json:"created_at"`
+	ID           uuid.UUID `json:"id"`
+	ProfileID    uuid.UUID `json:"profile_id"`
+	Institution  string    `json:"institution"`
+	Degree       string    `json:"degree"`
+	FieldOfStudy string    `json:"field_of_study,omitempty"`
+	StartDate    Date      `json:"start_date"`
+	EndDate      NullDate  `json:"end_date,omitempty"`
+	GPA          float64   `json:"gpa,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // Skill represents a user skill

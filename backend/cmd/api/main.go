@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/feijoa-master/ai-resume-builder/internal/config"
 	"github.com/feijoa-master/ai-resume-builder/internal/database"
+	"github.com/feijoa-master/ai-resume-builder/internal/handlers"
+	"github.com/feijoa-master/ai-resume-builder/internal/middleware"
+	"github.com/feijoa-master/ai-resume-builder/internal/repository"
+	"github.com/feijoa-master/ai-resume-builder/internal/service"
 	"github.com/feijoa-master/ai-resume-builder/internal/utils"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -24,6 +29,7 @@ func main() {
 	}
 
 	// Connect to database
+	log.Printf("Attempting to connect to database: %s", cfg.Database.URL)
 	db, err := database.Connect(database.Config{
 		URL:             cfg.Database.URL,
 		MaxOpenConns:    cfg.Database.MaxOpenConns,
@@ -42,21 +48,81 @@ func main() {
 		cfg.JWT.RefreshTokenExpiry,
 	)
 
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db.DB)
+	profileRepo := repository.NewProfileRepository(db.DB)
+	documentRepo := repository.NewDocumentRepository(db.DB)
+
+	// Initialize OpenAI service
+	openaiService := service.NewOpenAIService(
+		cfg.OpenAI.APIKey,
+		cfg.OpenAI.Model,
+		cfg.OpenAI.MaxTokens,
+		cfg.OpenAI.Temperature,
+	)
+
+	// Initialize services
+	authService := service.NewAuthService(userRepo, jwtManager)
+	profileService := service.NewProfileService(profileRepo)
+	documentService := service.NewDocumentService(documentRepo, profileRepo, userRepo, openaiService)
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(authService)
+	profileHandler := handlers.NewProfileHandler(profileService)
+	documentHandler := handlers.NewDocumentHandler(documentService)
+
 	// Create router
 	router := mux.NewRouter()
 
 	// API routes
 	api := router.PathPrefix("/api/v1").Subrouter()
 
-	// Health check
+	// Health check (public)
 	api.HandleFunc("/health", healthCheckHandler(db)).Methods("GET")
 
-	// Auth routes
-	api.HandleFunc("/auth/register", registerHandler()).Methods("POST")
-	api.HandleFunc("/auth/login", loginHandler()).Methods("POST")
+	// Auth routes (public)
+	api.HandleFunc("/auth/register", authHandler.Register).Methods("POST")
+	api.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
+	api.HandleFunc("/auth/refresh", authHandler.RefreshToken).Methods("POST")
+	api.HandleFunc("/auth/logout", authHandler.Logout).Methods("POST")
 
-	// Protected routes (will add middleware later)
-	api.HandleFunc("/profile", getProfileHandler()).Methods("GET")
+	// Protected routes (require authentication)
+	protected := api.PathPrefix("").Subrouter()
+	protected.Use(middleware.JWTAuth(jwtManager))
+
+	// User endpoints
+	protected.HandleFunc("/user/me", getMeHandler(authService)).Methods("GET")
+
+	// Profile endpoints
+	protected.HandleFunc("/profile", profileHandler.GetProfile).Methods("GET")
+	protected.HandleFunc("/profile", profileHandler.UpdateProfile).Methods("PUT")
+
+	// Experience endpoints
+	protected.HandleFunc("/profile/experience", profileHandler.CreateExperience).Methods("POST")
+	protected.HandleFunc("/profile/experience", profileHandler.GetExperiences).Methods("GET")
+	protected.HandleFunc("/profile/experience/{id}", profileHandler.UpdateExperience).Methods("PUT")
+	protected.HandleFunc("/profile/experience/{id}", profileHandler.DeleteExperience).Methods("DELETE")
+
+	// Education endpoints
+	protected.HandleFunc("/profile/education", profileHandler.CreateEducation).Methods("POST")
+	protected.HandleFunc("/profile/education", profileHandler.GetEducation).Methods("GET")
+	protected.HandleFunc("/profile/education/{id}", profileHandler.UpdateEducation).Methods("PUT")
+	protected.HandleFunc("/profile/education/{id}", profileHandler.DeleteEducation).Methods("DELETE")
+
+	// Skills endpoints
+	protected.HandleFunc("/profile/skills", profileHandler.CreateSkill).Methods("POST")
+	protected.HandleFunc("/profile/skills", profileHandler.GetSkills).Methods("GET")
+	protected.HandleFunc("/profile/skills/{id}", profileHandler.DeleteSkill).Methods("DELETE")
+
+	// Document generation endpoints
+	protected.HandleFunc("/generate/resume", documentHandler.GenerateResume).Methods("POST")
+	protected.HandleFunc("/generate/cover-letter", documentHandler.GenerateCoverLetter).Methods("POST")
+
+	// Document management endpoints
+	protected.HandleFunc("/documents", documentHandler.GetDocuments).Methods("GET")
+	protected.HandleFunc("/documents/{id}", documentHandler.GetDocument).Methods("GET")
+	protected.HandleFunc("/documents/{id}", documentHandler.UpdateDocument).Methods("PUT")
+	protected.HandleFunc("/documents/{id}", documentHandler.DeleteDocument).Methods("DELETE")
 
 	// CORS configuration
 	corsHandler := cors.New(cors.Options{
@@ -115,26 +181,24 @@ func healthCheckHandler(db *database.DB) http.HandlerFunc {
 	}
 }
 
-func registerHandler() http.HandlerFunc {
+func getMeHandler(authService *service.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Register endpoint - Coming soon"}`))
-	}
-}
+		userID, ok := middleware.GetUserIDFromContext(r)
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error": "Unauthorized"}`))
+			return
+		}
 
-func loginHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Login endpoint - Coming soon"}`))
-	}
-}
+		user, err := authService.GetUserByID(userID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error": "Failed to get user"}`))
+			return
+		}
 
-func getProfileHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Profile endpoint - Coming soon"}`))
+		json.NewEncoder(w).Encode(user)
 	}
 }
