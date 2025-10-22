@@ -143,7 +143,26 @@ func (r *DocumentRepository) GetDocuments(userID uuid.UUID) ([]*models.Document,
 
 // UpdateDocument updates a document
 func (r *DocumentRepository) UpdateDocument(doc *models.Document) error {
-	contentJSON, err := json.Marshal(doc.Content)
+	// First, get the existing document to preserve fields not being updated
+	existing, err := r.GetDocumentByID(doc.ID, doc.UserID)
+	if err != nil {
+		return err
+	}
+
+	// Update only non-empty fields
+	if doc.Title != "" {
+		existing.Title = doc.Title
+	}
+	if doc.Status != "" {
+		existing.Status = doc.Status
+	}
+	// Only update content if it's provided (not nil)
+	if doc.Content != nil {
+		existing.Content = doc.Content
+	}
+
+	// Marshal the content (either existing or updated)
+	contentJSON, err := json.Marshal(existing.Content)
 	if err != nil {
 		return fmt.Errorf("failed to marshal content: %w", err)
 	}
@@ -154,7 +173,7 @@ func (r *DocumentRepository) UpdateDocument(doc *models.Document) error {
 		WHERE id = $4 AND user_id = $5
 	`
 
-	result, err := r.db.Exec(query, doc.Title, contentJSON, doc.Status, doc.ID, doc.UserID)
+	result, err := r.db.Exec(query, existing.Title, contentJSON, existing.Status, doc.ID, doc.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to update document: %w", err)
 	}
