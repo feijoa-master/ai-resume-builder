@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiN2Q4OTJiYTAtOWY1NC00MTgxLWE0YzMtYzU5YjFlNDc4ZTllIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaXNfcHJlbWl1bSI6ZmFsc2UsInN1YiI6IjdkODkyYmEwLTlmNTQtNDE4MS1hNGMzLWM1OWIxZTQ3OGU5ZSIsImV4cCI6MTc2MTExNTkwMiwiaWF0IjoxNzYxMTE1MDAyfQ.WkOIbuHrl_oeZldDXSX5vYOZvFn_IctlGBtj0dvlIyU\")",
+      "Bash(docker exec:*)",
+      "Bash(docker-compose exec:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
